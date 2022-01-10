@@ -24,18 +24,26 @@ const solanaMetadata = {
 // If you have selected Solana then the collection starts from 0 automatically
 const layerConfigurations = [
   {
-    growEditionSizeTo: 5,
+    growEditionSizeTo: 1000,
     layersOrder: [
       { name: "Background" },
-      { name: "Eyeball" },
-      { name: "Eye color" },
-      { name: "Iris" },
-      { name: "Shine" },
-      { name: "Bottom lid" },
-      { name: "Top lid" },
+      { name: "Skin" },
+      {
+        name: "Mouth",
+        dependsOnIdx: "1",
+        mapper: { brown: "Brown", gold: "Gold" },
+      },
+      { name: "Eye" },
+      { name: "Eyewear" },
+      { name: "Claw" },
+      { name: "Headwear" },
+      { name: "Outfit" },
     ],
   },
 ];
+
+//mapping from parent filename => child bucket
+// if depends on, refer to mapping for which subfolder to search through
 
 const shuffleLayerConfigurations = false;
 

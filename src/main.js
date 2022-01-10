@@ -28,7 +28,7 @@ ctx.imageSmoothingEnabled = format.smoothing;
 var metadataList = [];
 var attributesList = [];
 var dnaList = new Set();
-const DNA_DELIMITER = "-";
+const DNA_DELIMITER = "&";
 const HashlipsGiffer = require(`${basePath}/modules/HashlipsGiffer.js`);
 
 let hashlipsGiffer = null;
@@ -68,42 +68,72 @@ const cleanName = (_str) => {
   return nameWithoutWeight;
 };
 
-const getElements = (path) => {
-  return fs
-    .readdirSync(path)
-    .filter((item) => !/(^|\/)\.[^\/\.]/g.test(item))
-    .map((i, index) => {
-      return {
-        id: index,
-        name: cleanName(i),
-        filename: i,
-        path: `${path}${i}`,
-        weight: getRarityWeight(i),
-      };
+const getElements = (path, createSubFolders) => {
+  const subpath = fs.readdirSync(path);
+  if (createSubFolders) {
+    const res = {};
+    subpath.map((subfolder) => {
+      fs.readdirSync(`${path}${subfolder}`)
+        .filter((item) => !/(^|\/)\.[^\/\.]/g.test(item))
+        .map((item, i) => {
+          console.log(subfolder);
+          const toAppend = {
+            id: i,
+            name: cleanName(item),
+            filename: item,
+            path: `${path}${subfolder}/${item}`,
+            weight: getRarityWeight(item),
+          };
+          !res[subfolder]
+            ? (res[subfolder] = [toAppend])
+            : res[subfolder].push(toAppend);
+        });
     });
+    return res;
+  } else {
+    return subpath
+      .filter((item) => !/(^|\/)\.[^\/\.]/g.test(item))
+      .map((i, index) => {
+        return {
+          id: index,
+          name: cleanName(i),
+          filename: i,
+          path: `${path}${i}`,
+          weight: getRarityWeight(i),
+        };
+      });
+  }
 };
 
 const layersSetup = (layersOrder) => {
-  const layers = layersOrder.map((layerObj, index) => ({
-    id: index,
-    elements: getElements(`${layersDir}/${layerObj.name}/`),
-    name:
-      layerObj.options?.["displayName"] != undefined
-        ? layerObj.options?.["displayName"]
-        : layerObj.name,
-    blend:
-      layerObj.options?.["blend"] != undefined
-        ? layerObj.options?.["blend"]
-        : "source-over",
-    opacity:
-      layerObj.options?.["opacity"] != undefined
-        ? layerObj.options?.["opacity"]
-        : 1,
-    bypassDNA:
-      layerObj.options?.["bypassDNA"] !== undefined
-        ? layerObj.options?.["bypassDNA"]
-        : false,
-  }));
+  const layers = layersOrder.map((layerObj, index) => {
+    return {
+      id: index,
+      elements: getElements(
+        `${layersDir}/${layerObj.name}/`,
+        !!layerObj.dependsOnIdx
+      ),
+      dependsOnIdx: layerObj.dependsOnIdx,
+      mapper: layerObj.mapper,
+      name:
+        layerObj.options?.["displayName"] != undefined
+          ? layerObj.options?.["displayName"]
+          : layerObj.name,
+      blend:
+        layerObj.options?.["blend"] != undefined
+          ? layerObj.options?.["blend"]
+          : "source-over",
+      opacity:
+        layerObj.options?.["opacity"] != undefined
+          ? layerObj.options?.["opacity"]
+          : 1,
+      bypassDNA:
+        layerObj.options?.["bypassDNA"] !== undefined
+          ? layerObj.options?.["bypassDNA"]
+          : false,
+    };
+  });
+
   return layers;
 };
 
@@ -213,10 +243,18 @@ const drawElement = (_renderObject, _index, _layersLen) => {
 };
 
 const constructLayerToDna = (_dna = "", _layers = []) => {
+  mapperHelper = [];
   let mappedDnaToLayers = _layers.map((layer, index) => {
-    let selectedElement = layer.elements.find(
-      (e) => e.id == cleanDna(_dna.split(DNA_DELIMITER)[index])
+    const currDnaElem = _dna.split(DNA_DELIMITER)[index];
+    let currElements = layer.elements;
+    if (!!layer.dependsOnIdx) {
+      currElements =
+        layer.elements[layer.mapper[mapperHelper[layer.dependsOnIdx]]];
+    }
+    let selectedElement = currElements.find(
+      (e) => e.id == cleanDna(currDnaElem)
     );
+    mapperHelper.push(selectedElement.name);
     return {
       name: layer.name,
       blend: layer.blend,
@@ -274,19 +312,28 @@ const isDnaUnique = (_DnaList = new Set(), _dna = "") => {
 
 const createDna = (_layers) => {
   let randNum = [];
+  let mapperHelper = [];
   _layers.forEach((layer) => {
+    let currElements = layer.elements;
+    if (!!layer.dependsOnIdx) {
+      currElements =
+        layer.elements[layer.mapper[mapperHelper[layer.dependsOnIdx]]];
+    }
+
     var totalWeight = 0;
-    layer.elements.forEach((element) => {
+
+    currElements.forEach((element) => {
       totalWeight += element.weight;
     });
     // number between 0 - totalWeight
     let random = Math.floor(Math.random() * totalWeight);
-    for (var i = 0; i < layer.elements.length; i++) {
+    for (var i = 0; i < currElements.length; i++) {
       // subtract the current weight from the random weight until we reach a sub zero value.
-      random -= layer.elements[i].weight;
+      random -= currElements[i].weight;
       if (random < 0) {
+        mapperHelper.push(currElements[i].filename.split("#")[0]);
         return randNum.push(
-          `${layer.elements[i].id}:${layer.elements[i].filename}${
+          `${currElements[i].id}:${currElements[i].filename}${
             layer.bypassDNA ? "?bypassDNA=true" : ""
           }`
         );
