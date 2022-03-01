@@ -42,6 +42,20 @@ const layerConfigurations = [
         name: "4-Mouth",
         dependsOn: { idx: "1" },
       },
+      {
+        name: "5-Feet_Claw",
+        dependsOn: {
+          idx: "2",
+          matchOnIdx: "2",
+          specialOverride: { frozen: "1" },
+        },
+      },
+      {
+        name: "6-Eyewear_Special",
+      },
+      {
+        name: "7-Eye",
+      },
     ],
   },
 ];

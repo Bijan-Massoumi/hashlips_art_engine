@@ -251,7 +251,7 @@ const constructLayerToDna = (_dna = "", _layers = []) => {
   let mappedDnaToLayers = _layers.map((layer, index) => {
     const currDnaElem = _dna.split(DNA_DELIMITER)[index];
     let currElements = layer.elements;
-    const { idx, matchOnName } = layer.dependsOn || {};
+    const { idx } = layer.dependsOn || {};
     if (!!idx) {
       currElements =
         mapperHelper[idx] in layer.elements
@@ -333,7 +333,8 @@ const createDna = (_layers) => {
   _layers.forEach((layer, i) => {
     let currElements = layer.elements;
 
-    const { idx, matchOnName } = layer.dependsOn || {};
+    let { idx, matchOnIdx, specialOverride } = layer.dependsOn || {};
+
     if (!!idx) {
       currElements =
         mapperHelper[idx] in layer.elements
@@ -341,16 +342,21 @@ const createDna = (_layers) => {
           : layer.elements["else"];
     }
 
+    if (!!specialOverride?.[mapperHelper[idx]]) {
+      matchOnIdx = specialOverride?.[mapperHelper[idx]];
+    }
+
     if (!currElements) {
+      console.log(mapperHelper[idx]);
       mapperHelper.push(EMPTY.name);
       return randNum.push(EMPTY.short);
     }
 
     var totalWeight = 0;
 
-    if (matchOnName) {
+    if (matchOnIdx) {
       const matchedElem = currElements.find(
-        (e) => e.name === mapperHelper[idx]
+        (e) => e.name === mapperHelper[matchOnIdx]
       );
       mapperHelper.push(matchedElem.filename.split("#")[0]);
 
@@ -441,6 +447,7 @@ const startCreating = async () => {
       editionCount <= layerConfigurations[layerConfigIndex].growEditionSizeTo
     ) {
       let newDna = createDna(layers);
+      console.log(newDna);
       if (isDnaUnique(dnaList, newDna)) {
         let results = constructLayerToDna(newDna, layers);
         let loadedElements = [];
