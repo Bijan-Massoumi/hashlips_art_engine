@@ -22,22 +22,26 @@ const solanaMetadata = {
 };
 
 // If you have selected Solana then the collection starts from 0 automatically
+
+// dependsOn
+// skip-mapper
 const layerConfigurations = [
   {
     growEditionSizeTo: 1000,
     layersOrder: [
-      { name: "Background" },
-      { name: "Skin" },
+      { name: "1-Background" },
+      { name: "2-Skin" },
       {
-        name: "Mouth",
-        dependsOnIdx: "1",
-        mapper: { brown: "Brown", gold: "Gold" },
+        name: "3-Hand_Claw",
       },
-      { name: "Eye" },
-      { name: "Eyewear" },
-      { name: "Claw" },
-      { name: "Headwear" },
-      { name: "Outfit" },
+      {
+        name: "3-Hand_Claw_Frozen",
+        dependsOn: { idx: "2" },
+      },
+      {
+        name: "4-Mouth",
+        dependsOn: { idx: "1" },
+      },
     ],
   },
 ];

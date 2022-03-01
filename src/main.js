@@ -5,6 +5,12 @@ const sha1 = require(`${basePath}/node_modules/sha1`);
 const { createCanvas, loadImage } = require(`${basePath}/node_modules/canvas`);
 const buildDir = `${basePath}/build`;
 const layersDir = `${basePath}/layers`;
+const EMPTY = {
+  name: "none",
+  longFile: `${layersDir}/none#1.png`,
+  short: "none#1.png",
+};
+
 const {
   format,
   baseUri,
@@ -76,7 +82,6 @@ const getElements = (path, createSubFolders) => {
       fs.readdirSync(`${path}${subfolder}`)
         .filter((item) => !/(^|\/)\.[^\/\.]/g.test(item))
         .map((item, i) => {
-          console.log(subfolder);
           const toAppend = {
             id: i,
             name: cleanName(item),
@@ -111,10 +116,9 @@ const layersSetup = (layersOrder) => {
       id: index,
       elements: getElements(
         `${layersDir}/${layerObj.name}/`,
-        !!layerObj.dependsOnIdx
+        !!layerObj.dependsOn?.idx
       ),
-      dependsOnIdx: layerObj.dependsOnIdx,
-      mapper: layerObj.mapper,
+      dependsOn: layerObj.dependsOn,
       name:
         layerObj.options?.["displayName"] != undefined
           ? layerObj.options?.["displayName"]
@@ -247,13 +251,25 @@ const constructLayerToDna = (_dna = "", _layers = []) => {
   let mappedDnaToLayers = _layers.map((layer, index) => {
     const currDnaElem = _dna.split(DNA_DELIMITER)[index];
     let currElements = layer.elements;
-    if (!!layer.dependsOnIdx) {
+    const { idx, matchOnName } = layer.dependsOn || {};
+    if (!!idx) {
       currElements =
-        layer.elements[layer.mapper[mapperHelper[layer.dependsOnIdx]]];
+        mapperHelper[idx] in layer.elements
+          ? layer.elements[mapperHelper[idx]]
+          : layer.elements["else"];
     }
-    let selectedElement = currElements.find(
-      (e) => e.id == cleanDna(currDnaElem)
-    );
+    let selectedElement;
+    if (currDnaElem === EMPTY.short) {
+      selectedElement = {
+        id: 0,
+        name: EMPTY.name,
+        filename: EMPTY.short,
+        path: EMPTY.longFile,
+        weight: 1,
+      };
+    } else {
+      selectedElement = currElements.find((e) => e.id == cleanDna(currDnaElem));
+    }
     mapperHelper.push(selectedElement.name);
     return {
       name: layer.name,
@@ -313,30 +329,55 @@ const isDnaUnique = (_DnaList = new Set(), _dna = "") => {
 const createDna = (_layers) => {
   let randNum = [];
   let mapperHelper = [];
-  _layers.forEach((layer) => {
+
+  _layers.forEach((layer, i) => {
     let currElements = layer.elements;
-    if (!!layer.dependsOnIdx) {
+
+    const { idx, matchOnName } = layer.dependsOn || {};
+    if (!!idx) {
       currElements =
-        layer.elements[layer.mapper[mapperHelper[layer.dependsOnIdx]]];
+        mapperHelper[idx] in layer.elements
+          ? layer.elements[mapperHelper[idx]]
+          : layer.elements["else"];
+    }
+
+    if (!currElements) {
+      mapperHelper.push(EMPTY.name);
+      return randNum.push(EMPTY.short);
     }
 
     var totalWeight = 0;
 
-    currElements.forEach((element) => {
-      totalWeight += element.weight;
-    });
-    // number between 0 - totalWeight
-    let random = Math.floor(Math.random() * totalWeight);
-    for (var i = 0; i < currElements.length; i++) {
-      // subtract the current weight from the random weight until we reach a sub zero value.
-      random -= currElements[i].weight;
-      if (random < 0) {
-        mapperHelper.push(currElements[i].filename.split("#")[0]);
-        return randNum.push(
-          `${currElements[i].id}:${currElements[i].filename}${
-            layer.bypassDNA ? "?bypassDNA=true" : ""
-          }`
-        );
+    if (matchOnName) {
+      const matchedElem = currElements.find(
+        (e) => e.name === mapperHelper[idx]
+      );
+      mapperHelper.push(matchedElem.filename.split("#")[0]);
+
+      return randNum.push(
+        `${matchedElem.id}:${matchedElem.filename}${
+          layer.bypassDNA ? "?bypassDNA=true" : ""
+        }`
+      );
+    } else {
+      currElements.forEach((element) => {
+        totalWeight += element.weight;
+      });
+
+      // number between 0 - totalWeight
+      let random = Math.floor(Math.random() * totalWeight);
+      for (var i = 0; i < currElements.length; i++) {
+        // subtract the current weight from the random weight until we reach a sub zero value.
+        random -= currElements[i].weight;
+        if (random < 0) {
+          mapperHelper.push(currElements[i].filename.split("#")[0]);
+
+          return randNum.push(
+            `${currElements[i].id}:${currElements[i].filename}${
+              layer.bypassDNA ? "?bypassDNA=true" : ""
+            }`
+          );
+        }
       }
     }
   });
