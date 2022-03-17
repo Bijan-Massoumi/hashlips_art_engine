@@ -7,9 +7,11 @@ const buildDir = `${basePath}/build`;
 const layersDir = `${basePath}/layers`;
 const EMPTY = {
   name: "none",
-  longFile: `${layersDir}/none#1.png`,
-  short: "none#1.png",
+  longFile: `${layersDir}/alt/none.png`,
+  short: "none.png",
 };
+
+const altContent = fs.readdirSync(`${layersDir}/alt`);
 
 const {
   format,
@@ -267,6 +269,14 @@ const constructLayerToDna = (_dna = "", _layers = []) => {
         path: EMPTY.longFile,
         weight: 1,
       };
+    } else if (altContent.includes(`${currDnaElem}.png`)) {
+      selectedElement = {
+        id: 0,
+        name: currDnaElem,
+        filename: `${currDnaElem}.png`,
+        path: `${layersDir}/alt/${currDnaElem}.png`,
+        weight: 1,
+      };
     } else {
       selectedElement = currElements.find((e) => e.id == cleanDna(currDnaElem));
     }
@@ -326,6 +336,23 @@ const isDnaUnique = (_DnaList = new Set(), _dna = "") => {
   return !_DnaList.has(_filteredDNA);
 };
 
+const shouldSkip = (skipMap, mapperHelper) =>
+  Object.entries(skipMap).some(([key, val]) => val.includes(mapperHelper[key]));
+
+const considerAltOverrideForLayer = (
+  currElement,
+  altOverride,
+  mapperHelper
+) => {
+  if (!altOverride) return currElement;
+  const { idx, name, match } = altOverride;
+  const currMatched = match.find((e) => e === currElement);
+  if (name.includes(mapperHelper[idx]) && currMatched) {
+    return `alt_${currMatched}`;
+  }
+  return currElement;
+};
+
 const createDna = (_layers) => {
   let randNum = [];
   let mapperHelper = [];
@@ -334,6 +361,8 @@ const createDna = (_layers) => {
     let currElements = layer.elements;
 
     let { idx, matchOnIdx, specialOverride } = layer.dependsOn || {};
+    const skipMap = layer.skipMap;
+    const altOverride = layer.altOverride;
 
     if (!!idx) {
       currElements =
@@ -346,8 +375,7 @@ const createDna = (_layers) => {
       matchOnIdx = specialOverride?.[mapperHelper[idx]];
     }
 
-    if (!currElements) {
-      console.log(mapperHelper[idx]);
+    if (!currElements || (!!skipMap && shouldSkip(skipMap, mapperHelper))) {
       mapperHelper.push(EMPTY.name);
       return randNum.push(EMPTY.short);
     }
@@ -376,7 +404,13 @@ const createDna = (_layers) => {
         // subtract the current weight from the random weight until we reach a sub zero value.
         random -= currElements[i].weight;
         if (random < 0) {
-          mapperHelper.push(currElements[i].filename.split("#")[0]);
+          const curr = considerAltOverrideForLayer(
+            currElements[i].filename.split("#")[0],
+            altOverride,
+            mapperHelper
+          );
+
+          mapperHelper.push(curr);
 
           return randNum.push(
             `${currElements[i].id}:${currElements[i].filename}${
@@ -447,7 +481,6 @@ const startCreating = async () => {
       editionCount <= layerConfigurations[layerConfigIndex].growEditionSizeTo
     ) {
       let newDna = createDna(layers);
-      console.log(newDna);
       if (isDnaUnique(dnaList, newDna)) {
         let results = constructLayerToDna(newDna, layers);
         let loadedElements = [];

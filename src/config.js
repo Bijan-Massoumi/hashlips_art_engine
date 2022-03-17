@@ -56,6 +56,17 @@ const layerConfigurations = [
       {
         name: "7-Eye",
       },
+      { name: "8-Eyewear", skipMap: { 6: ["superheromask"] } },
+      { name: "9-Headwear" },
+      {
+        name: "10-Outfit",
+        altOverride: {
+          idx: 3,
+          name: ["alien", "cuckoo", "meat", "morecash", "poo", "shocked"],
+          match: ["nwaJacket", "snowcamoflage", "wintersportsjacket"],
+        },
+      },
+      { name: "11-Footwear", dependsOn: { idx: 10 } },
     ],
   },
 ];
