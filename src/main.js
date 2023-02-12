@@ -249,15 +249,15 @@ const drawElement = (_renderObject, _index, _layersLen) => {
 };
 
 const constructLayerToDna = (_dna = "", _layers = []) => {
-  mapperHelper = [];
+  previouslyChosenFilenames = [];
   let mappedDnaToLayers = _layers.map((layer, index) => {
     const currDnaElem = _dna.split(DNA_DELIMITER)[index];
     let currElements = layer.elements;
     const { idx } = layer.dependsOn || {};
     if (!!idx) {
       currElements =
-        mapperHelper[idx] in layer.elements
-          ? layer.elements[mapperHelper[idx]]
+        previouslyChosenFilenames[idx] in layer.elements
+          ? layer.elements[previouslyChosenFilenames[idx]]
           : layer.elements["else"];
     }
     let selectedElement;
@@ -280,7 +280,7 @@ const constructLayerToDna = (_dna = "", _layers = []) => {
     } else {
       selectedElement = currElements.find((e) => e.id == cleanDna(currDnaElem));
     }
-    mapperHelper.push(selectedElement.name);
+    previouslyChosenFilenames.push(selectedElement.name);
     return {
       name: layer.name,
       blend: layer.blend,
@@ -336,18 +336,20 @@ const isDnaUnique = (_DnaList = new Set(), _dna = "") => {
   return !_DnaList.has(_filteredDNA);
 };
 
-const shouldSkip = (skipMap, mapperHelper) =>
-  Object.entries(skipMap).some(([key, val]) => val.includes(mapperHelper[key]));
+const shouldSkip = (skipMap, previouslyChosenFilenames) =>
+  Object.entries(skipMap).some(([key, val]) => val.includes(previouslyChosenFilenames[key]));
 
 const considerAltOverrideForLayer = (
-  currElement,
+  currFilename,
   altOverride,
-  mapperHelper
+  previouslyChosenFilenames
 ) => {
-  if (!altOverride) return currElement;
+  if (!altOverride) return currFilename;
   const { idx, name, match } = altOverride;
-  const currMatched = match.find((e) => e === currElement);
-  if (name.includes(mapperHelper[idx]) && currMatched) {
+  // is the current filename in the altOverride match list?
+  const currMatched = match.find((e) => e === currFilename);
+  // did we previously get a significant name in a previous later
+  if (name.includes(previouslyChosenFilenames[idx]) && currMatched) {
     return `alt_${currMatched}`;
   }
   return currElement;
@@ -355,7 +357,7 @@ const considerAltOverrideForLayer = (
 
 const createDna = (_layers) => {
   let randNum = [];
-  let mapperHelper = [];
+  let previouslyChosenFilenames = [];
 
   _layers.forEach((layer, i) => {
     let currElements = layer.elements;
@@ -366,27 +368,29 @@ const createDna = (_layers) => {
 
     if (!!idx) {
       currElements =
-        mapperHelper[idx] in layer.elements
-          ? layer.elements[mapperHelper[idx]]
+        previouslyChosenFilenames[idx] in layer.elements
+          ? layer.elements[previouslyChosenFilenames[idx]]
           : layer.elements["else"];
     }
 
-    if (!!specialOverride?.[mapperHelper[idx]]) {
-      matchOnIdx = specialOverride?.[mapperHelper[idx]];
+    if (!!specialOverride?.[previouslyChosenFilenames[idx]]) {
+      matchOnIdx = specialOverride?.[previouslyChosenFilenames[idx]];
     }
 
-    if (!currElements || (!!skipMap && shouldSkip(skipMap, mapperHelper))) {
-      mapperHelper.push(EMPTY.name);
+    if (!currElements || (!!skipMap && shouldSkip(skipMap, previouslyChosenFilenames))) {
+      previouslyChosenFilenames.push(EMPTY.name);
       return randNum.push(EMPTY.short);
     }
 
     var totalWeight = 0;
 
+    // matchOnIdx is used to bypass random selection and instead match the current chosen 
+    // file to the element with the same name in the layer specified by matchOnIdx
     if (matchOnIdx) {
       const matchedElem = currElements.find(
-        (e) => e.name === mapperHelper[matchOnIdx]
+        (e) => e.name === previouslyChosenFilenames[matchOnIdx]
       );
-      mapperHelper.push(matchedElem.filename.split("#")[0]);
+      previouslyChosenFilenames.push(matchedElem.filename.split("#")[0]);
 
       return randNum.push(
         `${matchedElem.id}:${matchedElem.filename}${
@@ -407,10 +411,10 @@ const createDna = (_layers) => {
           const curr = considerAltOverrideForLayer(
             currElements[i].filename.split("#")[0],
             altOverride,
-            mapperHelper
+            previouslyChosenFilenames
           );
 
-          mapperHelper.push(curr);
+          previouslyChosenFilenames.push(curr);
 
           return randNum.push(
             `${currElements[i].id}:${currElements[i].filename}${
